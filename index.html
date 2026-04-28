@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alpha Detection — Polymarket Edge Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #0a1628;
+    --navy-light: #142340;
+    --navy-lighter: #1c2f56;
+    --gold: #c9a961;
+    --gold-bright: #e6c989;
+    --gold-dim: #8a7340;
+    --cream: #f4ecd8;
+    --bg: #050b14;
+    --text: #e8e0c8;
+    --text-dim: #a09680;
+    --green: #5fb878;
+    --red: #d96363;
+    --neutral: #8090a8;
+    --border: #2a3a5c;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height:100vh; }
+
+  .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 24px;
+    margin-bottom: 32px;
+    display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 16px;
+  }
+  h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    font-size: 2.4rem;
+    color: var(--gold-bright);
+    letter-spacing: 0.5px;
+  }
+  h1 .accent { color: var(--gold-dim); font-style: italic; font-size: 0.9em; }
+  .subtitle { color: var(--text-dim); font-size: 0.85rem; margin-top: 4px; letter-spacing: 0.5px; }
+
+  .status-strip { display: flex; gap: 16px; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
+  .status-item { color: var(--text-dim); }
+  .status-item .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+  .status-item.live .dot { background: var(--green); animation: pulse 2s infinite; }
+  .status-item.error .dot { background: var(--red); }
+  @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.4 } }
+
+  nav { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 28px; }
+  nav button {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    padding: 14px 20px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    letter-spacing: 0.3px;
+    transition: all 0.15s;
+  }
+  nav button:hover { color: var(--gold-bright); }
+  nav button.active { color: var(--gold-bright); border-bottom-color: var(--gold); }
+
+  .tab { display: none; }
+  .tab.active { display: block; }
+
+  .panel {
+    background: var(--navy);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .panel h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    font-size: 1.5rem;
+    color: var(--gold);
+    margin-bottom: 16px;
+    letter-spacing: 0.3px;
+  }
+  .panel h3 {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+  }
+
+  .form-row { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+  .field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 200px; }
+  .field.small { flex: 0 1 140px; min-width: 100px; }
+  label { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  input, select, textarea {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 3px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    transition: border 0.15s;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--gold);
+  }
+  textarea { resize: vertical; min-height: 60px; font-family: 'DM Sans', sans-serif; }
+
+  button.primary, button.secondary, button.danger {
+    border: 1px solid var(--gold);
+    background: var(--gold);
+    color: var(--navy);
+    padding: 10px 18px;
+    border-radius: 3px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: all 0.15s;
+  }
+  button.primary:hover { background: var(--gold-bright); border-color: var(--gold-bright); }
+  button.secondary { background: transparent; color: var(--gold); }
+  button.secondary:hover { background: var(--navy-lighter); }
+  button.danger { background: transparent; border-color: var(--red); color: var(--red); }
+  button.danger:hover { background: var(--red); color: var(--bg); }
+  button.tiny {
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 2px;
+    cursor: pointer;
+  }
+  button.tiny:hover { color: var(--gold); border-color: var(--gold); }
+
+  /* Market cards */
+  .market-list { display: flex; flex-direction: column; gap: 12px; }
+  .market-card {
+    background: var(--navy);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--gold-dim);
+    border-radius: 3px;
+    padding: 16px 20px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px;
+    transition: border-left-color 0.2s;
+  }
+  .market-card.alert { border-left-color: var(--gold); animation: glow 1.5s 3; }
+  @keyframes glow { 0%, 100% { box-shadow: 0 0 0 transparent; } 50% { box-shadow: 0 0 20px rgba(201,169,97,0.3); } }
+
+  .market-card .question {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.15rem;
+    color: var(--gold-bright);
+    line-height: 1.3;
+    margin-bottom: 8px;
+  }
+  .market-meta {
+    display: flex;
+    gap: 18px;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    flex-wrap: wrap;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .market-meta span strong { color: var(--text); font-weight: 500; }
+
+  .price-block { text-align: right; min-width: 140px; }
+  .price-main {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.8rem;
+    font-weight: 500;
+    color: var(--gold-bright);
+    line-height: 1;
+  }
+  .price-change {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    margin-top: 4px;
+  }
+  .price-change.up { color: var(--green); }
+  .price-change.down { color: var(--red); }
+  .price-change.flat { color: var(--neutral); }
+
+  .sparkline { width: 120px; height: 30px; margin-top: 6px; }
+
+  .market-actions { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
+
+  /* Outcomes for multi-outcome markets */
+  .outcomes { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }
+  .outcome-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 4px 0;
+    font-size: 0.85rem;
+    border-bottom: 1px dotted var(--navy-lighter);
+  }
+  .outcome-row:last-child { border-bottom: none; }
+  .outcome-name { color: var(--text); }
+  .outcome-price { font-family: 'JetBrains Mono', monospace; color: var(--gold); }
+
+  /* Trade journal */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  th {
+    text-align: left;
+    color: var(--text-dim);
+    font-weight: 600;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.5px;
+  }
+  td {
+    padding: 12px;
+    border-bottom: 1px solid var(--navy-lighter);
+    color: var(--text);
+  }
+  tr:hover { background: var(--navy-light); }
+  td.mono { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 2px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .badge.buy-yes { background: rgba(95,184,120,0.15); color: var(--green); border: 1px solid var(--green); }
+  .badge.buy-no { background: rgba(217,99,99,0.15); color: var(--red); border: 1px solid var(--red); }
+  .badge.skip { background: rgba(128,144,168,0.15); color: var(--neutral); border: 1px solid var(--neutral); }
+  .badge.pending { background: rgba(201,169,97,0.15); color: var(--gold); border: 1px solid var(--gold); }
+  .badge.win { background: rgba(95,184,120,0.25); color: var(--green); }
+  .badge.loss { background: rgba(217,99,99,0.25); color: var(--red); }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--navy);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 18px;
+  }
+  .stat-card .label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .stat-card .value {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2rem;
+    font-weight: 500;
+    color: var(--gold-bright);
+    line-height: 1;
+  }
+  .stat-card .sub {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-top: 6px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Calibration chart */
+  .calib-chart { width: 100%; max-width: 500px; height: 300px; }
+
+  /* Alert log */
+  .alert-log { max-height: 200px; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
+  .alert-entry { padding: 6px 0; border-bottom: 1px dotted var(--navy-lighter); color: var(--text-dim); }
+  .alert-entry strong { color: var(--gold-bright); }
+
+  /* Modal */
+  .modal-bg {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.8); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-bg.show { display: flex; }
+  .modal {
+    background: var(--navy);
+    border: 1px solid var(--gold);
+    border-radius: 4px;
+    padding: 28px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal h2 { color: var(--gold); margin-bottom: 20px; font-family: 'Cormorant Garamond', serif; font-weight: 500; }
+  .modal .actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; }
+
+  .empty-state {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--text-dim);
+  }
+  .empty-state h3 {
+    font-family: 'Cormorant Garamond', serif;
+    color: var(--gold-dim);
+    font-size: 1.4rem;
+    font-weight: 400;
+    margin-bottom: 12px;
+  }
+
+  details summary {
+    cursor: pointer;
+    color: var(--gold);
+    font-size: 0.85rem;
+    padding: 8px 0;
+    user-select: none;
+  }
+  details[open] summary { margin-bottom: 12px; }
+
+  .resolution-text {
+    background: var(--bg);
+    padding: 12px;
+    border-left: 2px solid var(--gold-dim);
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--text-dim);
+    margin-top: 8px;
+    font-style: italic;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .container { padding: 12px; }
+    h1 { font-size: 1.6rem; }
+    .market-card { grid-template-columns: 1fr; }
+    .price-block { text-align: left; }
+    nav { overflow-x: auto; }
+    nav button { white-space: nowrap; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <div>
+    <h1>Alpha Detection <span class="accent">— Polymarket Edge Engine</span></h1>
+    <div class="subtitle">Karakter · Disciplin · Klarhed — applied to prediction markets</div>
+  </div>
+  <div class="status-strip">
+    <div class="status-item live" id="statusLive"><span class="dot"></span><span id="liveText">Initialiserer…</span></div>
+    <div class="status-item" id="statusUpdate"><span>Sidst opdateret: —</span></div>
+    <div class="status-item" id="statusMarkets"><span>0 markeder</span></div>
+  </div>
+</header>
+
+<nav>
+  <button class="active" data-tab="watchlist">Watchlist</button>
+  <button data-tab="journal">Trade Journal</button>
+  <button data-tab="performance">Performance</button>
+  <button data-tab="alerts">Alert Log</button>
+  <button data-tab="settings">Indstillinger</button>
+</nav>
+
+<!-- WATCHLIST TAB -->
+<div class="tab active" id="tab-watchlist">
+
+  <div class="panel">
+    <h3>Tilføj marked</h3>
+    <div class="form-row">
+      <div class="field">
+        <label>Polymarket URL eller slug</label>
+        <input type="text" id="addMarketInput" placeholder="https://polymarket.com/event/... eller 'will-mette-frederiksen-...'">
+      </div>
+      <button class="primary" id="addMarketBtn">Tilføj</button>
+    </div>
+    <details style="margin-top: 12px;">
+      <summary>Forslag — illikvide eller danske markeder</summary>
+      <div style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px;">
+        <button class="tiny" data-suggest="next-prime-minister-of-denmark-after-parliamentary-election">Next Prime Minister of Denmark</button>
+        <button class="tiny" data-suggest="which-parties-will-be-part-of-the-next-government-of-denmark">Which parties in next Denmark Government</button>
+        <button class="tiny" data-suggest="will-trump-acquire-greenland-before-2027">Will Trump acquire Greenland before 2027</button>
+        <button class="tiny" data-suggest="trump-x-greenland-deal-signed-by-december-31">Trump-Greenland deal signed by Dec 31</button>
+      </div>
+    </details>
+  </div>
+
+  <div class="panel">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h2 style="margin: 0;">Aktive markeder</h2>
+      <div style="display: flex; gap: 8px;">
+        <button class="tiny" id="refreshBtn">⟳ Refresh nu</button>
+        <button class="tiny" id="clearAlertsBtn">Ryd alerts</button>
+      </div>
+    </div>
+    <div id="marketList" class="market-list"></div>
+  </div>
+
+</div>
+
+<!-- TRADE JOURNAL TAB -->
+<div class="tab" id="tab-journal">
+
+  <div class="panel">
+    <h2>Logfør trade-beslutning</h2>
+    <p style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 16px;">
+      Hver beslutning logges — også <em>SKIP</em>. Det er sådan kalibreringskurven bygges.
+    </p>
+    <div class="form-row">
+      <div class="field">
+        <label>Marked</label>
+        <select id="tradeMarket"></select>
+      </div>
+      <div class="field small">
+        <label>Outcome</label>
+        <select id="tradeOutcome"><option>YES</option></select>
+      </div>
+    </div>
+    <div class="form-row" style="margin-top: 12px;">
+      <div class="field small">
+        <label>P_market</label>
+        <input type="number" id="tradePMarket" step="0.001" min="0" max="1" placeholder="0.945">
+      </div>
+      <div class="field small">
+        <label>P_true (din)</label>
+        <input type="number" id="tradePTrue" step="0.001" min="0" max="1" placeholder="0.91">
+      </div>
+      <div class="field small">
+        <label>Confidence</label>
+        <input type="number" id="tradeConf" step="0.01" min="0" max="1" placeholder="0.72">
+      </div>
+      <div class="field small">
+        <label>Edge (auto)</label>
+        <input type="text" id="tradeEdge" readonly placeholder="—">
+      </div>
+    </div>
+    <div class="form-row" style="margin-top: 12px;">
+      <div class="field small">
+        <label>Action</label>
+        <select id="tradeAction">
+          <option value="SKIP">SKIP</option>
+          <option value="BUY_YES">BUY YES</option>
+          <option value="BUY_NO">BUY NO</option>
+        </select>
+      </div>
+      <div class="field small">
+        <label>Position ($)</label>
+        <input type="number" id="tradeSize" step="1" min="0" placeholder="0">
+      </div>
+      <div class="field small">
+        <label>Entry-pris</label>
+        <input type="number" id="tradeEntry" step="0.001" min="0" max="1" placeholder="0.945">
+      </div>
+      <div class="field">
+        <label>Tese (kort)</label>
+        <input type="text" id="tradeNotes" placeholder="Hvorfor dette trade? (1 linje)">
+      </div>
+    </div>
+    <div class="form-row" style="margin-top: 16px; justify-content: flex-end;">
+      <button class="primary" id="saveTradeBtn">Logfør</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h2 style="margin: 0;">Trades</h2>
+      <div style="display: flex; gap: 8px;">
+        <button class="tiny" id="exportTradesBtn">Eksportér JSON</button>
+        <button class="tiny" id="importTradesBtn">Importér JSON</button>
+        <input type="file" id="importTradesFile" accept=".json" style="display:none;">
+      </div>
+    </div>
+    <div id="tradesTable"></div>
+  </div>
+
+</div>
+
+<!-- PERFORMANCE TAB -->
+<div class="tab" id="tab-performance">
+
+  <div class="stats-grid" id="statsGrid"></div>
+
+  <div class="panel">
+    <h2>Kalibreringskurve</h2>
+    <p style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 16px;">
+      Når du sagde 70%, resolverede tingene så YES 70% af tiden? Mål: prikker på diagonalen.
+    </p>
+    <svg class="calib-chart" id="calibChart" viewBox="0 0 500 300" preserveAspectRatio="xMidYMid meet"></svg>
+  </div>
+
+  <div class="panel">
+    <h2>P&L over tid</h2>
+    <svg id="pnlChart" viewBox="0 0 800 200" preserveAspectRatio="none" style="width:100%; height: 200px;"></svg>
+  </div>
+
+</div>
+
+<!-- ALERT LOG TAB -->
+<div class="tab" id="tab-alerts">
+  <div class="panel">
+    <h2>Alert log</h2>
+    <p style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 16px;">
+      Hver markedsbevægelse over alert-tærsklen logges her. Sammenlign timestamp mod hvornår signal/nyhed dukkede op.
+    </p>
+    <div class="alert-log" id="alertLog"></div>
+  </div>
+</div>
+
+<!-- SETTINGS TAB -->
+<div class="tab" id="tab-settings">
+
+  <div class="panel">
+    <h2>Polling & alerts</h2>
+    <div class="form-row">
+      <div class="field small">
+        <label>Polling interval (sek)</label>
+        <input type="number" id="setPollingInterval" min="15" step="5" value="60">
+      </div>
+      <div class="field small">
+        <label>Alert-tærskel (% bevægelse)</label>
+        <input type="number" id="setAlertThreshold" min="0.5" step="0.5" value="3">
+      </div>
+      <div class="field small">
+        <label>Alert-vindue (min)</label>
+        <input type="number" id="setAlertWindow" min="5" step="5" value="30">
+      </div>
+      <div class="field small">
+        <label>Min volume for alert ($)</label>
+        <input type="number" id="setAlertVolume" min="0" step="1000" value="5000">
+      </div>
+    </div>
+    <div class="form-row" style="margin-top: 12px;">
+      <button class="primary" id="saveSettingsBtn">Gem</button>
+      <button class="secondary" id="testSoundBtn">🔔 Test lyd</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Data</h2>
+    <div class="form-row">
+      <button class="secondary" id="exportAllBtn">Eksportér alt (JSON)</button>
+      <button class="secondary" id="importAllBtn">Importér alt</button>
+      <input type="file" id="importAllFile" accept=".json" style="display:none;">
+      <button class="danger" id="resetAllBtn">Nulstil alt</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Om</h2>
+    <p style="color: var(--text-dim); font-size: 0.85rem; line-height: 1.6;">
+      Single-file HTML alpha detection dashboard for Polymarket. Henter live-data direkte fra Polymarket Gamma API.
+      Al data lagres lokalt i din browsers localStorage — intet sendes nogen steder.
+    </p>
+    <p style="color: var(--text-dim); font-size: 0.85rem; line-height: 1.6; margin-top: 8px;">
+      Edge-tærskel: 5% efter gebyrer/slippage. Confidence-tærskel: 65%. Disse er tunable i Settings.
+    </p>
+    <p style="color: var(--text-dim); font-size: 0.8rem; line-height: 1.6; margin-top: 12px; font-family: 'JetBrains Mono', monospace;">
+      v1.0 · build 2026-04-28
+    </p>
+  </div>
+
+</div>
+
+</div>
+
+<!-- Resolution modal -->
+<div class="modal-bg" id="resolutionModal">
+  <div class="modal">
+    <h2>Resolvér trade</h2>
+    <p style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 16px;">
+      Hvad var det faktiske udfald? Realized P&L beregnes automatisk.
+    </p>
+    <div class="form-row">
+      <div class="field">
+        <label>Udfald</label>
+        <select id="resolveOutcome">
+          <option value="WIN">Win (du fik ret)</option>
+          <option value="LOSS">Loss (du tog fejl)</option>
+          <option value="UNRESOLVED">Endnu uafgjort</option>
+        </select>
+      </div>
+      <div class="field small">
+        <label>Exit-pris (hvis solgt)</label>
+        <input type="number" id="resolveExit" step="0.001" min="0" max="1" placeholder="1.00">
+      </div>
+    </div>
+    <div class="actions">
+      <button class="secondary" onclick="closeModal()">Annullér</button>
+      <button class="primary" id="confirmResolveBtn">Bekræft</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ============================================================================
+// STATE & STORAGE
+// ============================================================================
+
+const STORE = {
+  watchlist: 'alpha.watchlist',
+  trades: 'alpha.trades',
+  alerts: 'alpha.alerts',
+  settings: 'alpha.settings',
+  history: 'alpha.history' // price history per market
+};
+
+const DEFAULT_SETTINGS = {
+  pollingInterval: 60,
+  alertThreshold: 3,
+  alertWindow: 30,
+  alertVolume: 5000,
+  edgeThreshold: 5,
+  confThreshold: 0.65
+};
+
+function load(key, fallback) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch(e) { return fallback; }
+}
+function save(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) { console.warn(e); }
+}
+
+let watchlist = load(STORE.watchlist, []);
+let trades = load(STORE.trades, []);
+let alerts = load(STORE.alerts, []);
+let settings = Object.assign({}, DEFAULT_SETTINGS, load(STORE.settings, {}));
+let history = load(STORE.history, {}); // { slug: [{t, p}] }
+
+let currentMarketData = {}; // slug -> latest market data
+let pollTimer = null;
+let resolveTradeId = null;
+
+// ============================================================================
+// POLYMARKET API
+// ============================================================================
+
+const GAMMA_BASE = 'https://polymarket-proxy.aksel-e8c.workers.dev';
+
+async function fetchMarketBySlug(slug) {
+  // Try as event first (multi-outcome), then as market
+  try {
+    const r = await fetch(`${GAMMA_BASE}/events?slug=${encodeURIComponent(slug)}`);
+    if (r.ok) {
+      const arr = await r.json();
+      if (arr && arr.length > 0) return { type: 'event', data: arr[0] };
+    }
+  } catch(e) {}
+
+  try {
+    const r = await fetch(`${GAMMA_BASE}/markets?slug=${encodeURIComponent(slug)}`);
+    if (r.ok) {
+      const arr = await r.json();
+      if (arr && arr.length > 0) return { type: 'market', data: arr[0] };
+    }
+  } catch(e) {}
+
+  return null;
+}
+
+function parseSlug(input) {
+  const trimmed = input.trim();
+  // URL: https://polymarket.com/event/<slug> or /market/<slug>
+  const m = trimmed.match(/polymarket\.com\/(?:event|market)\/([^/?#]+)/);
+  if (m) return m[1];
+  return trimmed;
+}
+
+function extractMarketSummary(result) {
+  if (!result) return null;
+  const { type, data } = result;
+
+  if (type === 'event') {
+    const markets = (data.markets || []).filter(m => m.active !== false && m.closed !== true);
+    if (markets.length === 0) return null;
+    const outcomes = markets.map(m => {
+      // For multi-outcome events, each "market" represents one outcome with YES/NO sides.
+      // We care about the YES price.
+      let outcomePrices = [];
+      try { outcomePrices = JSON.parse(m.outcomePrices || '[]'); } catch(e) {}
+      const yesPrice = outcomePrices[0] ? parseFloat(outcomePrices[0]) : null;
+      return {
+        name: m.groupItemTitle || m.question || 'Outcome',
+        price: yesPrice,
+        volume: parseFloat(m.volume || 0),
+        liquidity: parseFloat(m.liquidity || 0),
+        marketId: m.id,
+      };
+    });
+    outcomes.sort((a,b) => (b.price || 0) - (a.price || 0));
+    return {
+      slug: data.slug,
+      question: data.title || data.question,
+      isMulti: outcomes.length > 1,
+      outcomes,
+      topPrice: outcomes[0]?.price,
+      volume: parseFloat(data.volume || 0) || outcomes.reduce((s,o)=>s+o.volume, 0),
+      liquidity: parseFloat(data.liquidity || 0) || outcomes.reduce((s,o)=>s+o.liquidity, 0),
+      endDate: data.endDate,
+      description: data.description,
+      resolutionSource: data.resolutionSource
+    };
+  }
+
+  // Single market
+  let outcomePrices = [];
+  try { outcomePrices = JSON.parse(data.outcomePrices || '[]'); } catch(e) {}
+  const yesPrice = outcomePrices[0] ? parseFloat(outcomePrices[0]) : null;
+  return {
+    slug: data.slug,
+    question: data.question,
+    isMulti: false,
+    outcomes: [{ name: 'YES', price: yesPrice }],
+    topPrice: yesPrice,
+    volume: parseFloat(data.volume || 0),
+    liquidity: parseFloat(data.liquidity || 0),
+    endDate: data.endDate,
+    description: data.description,
+    resolutionSource: data.resolutionSource
+  };
+}
+
+async function refreshAll() {
+  setStatus('live', `Henter ${watchlist.length} markeder…`);
+  let success = 0, errors = 0;
+  for (const slug of watchlist) {
+    try {
+      const r = await fetchMarketBySlug(slug);
+      const summary = extractMarketSummary(r);
+      if (summary) {
+        currentMarketData[slug] = summary;
+        recordPrice(slug, summary.topPrice);
+        checkAlert(slug, summary);
+        success++;
+      } else {
+        errors++;
+      }
+    } catch(e) {
+      errors++;
+      console.warn('Fetch failed', slug, e);
+    }
+  }
+  setStatus(errors > 0 ? 'error' : 'live', `${success} ok, ${errors} fejl`);
+  document.getElementById('statusUpdate').textContent = `Sidst opdateret: ${new Date().toLocaleTimeString('da-DK')}`;
+  document.getElementById('statusMarkets').textContent = `${watchlist.length} markeder`;
+  renderMarkets();
+}
+
+function setStatus(level, text) {
+  const el = document.getElementById('statusLive');
+  el.classList.remove('live', 'error');
+  el.classList.add(level);
+  document.getElementById('liveText').textContent = text;
+}
+
+// ============================================================================
+// PRICE HISTORY & ALERTS
+// ============================================================================
+
+function recordPrice(slug, price) {
+  if (price == null) return;
+  if (!history[slug]) history[slug] = [];
+  const now = Date.now();
+  history[slug].push({ t: now, p: price });
+  // Keep last 24h only
+  const cutoff = now - 24 * 3600 * 1000;
+  history[slug] = history[slug].filter(x => x.t >= cutoff);
+  save(STORE.history, history);
+}
+
+function getPriceChange(slug, windowMin) {
+  const h = history[slug];
+  if (!h || h.length < 2) return { change: 0, from: null };
+  const cutoff = Date.now() - windowMin * 60 * 1000;
+  const oldEntries = h.filter(x => x.t <= cutoff);
+  const old = oldEntries.length > 0 ? oldEntries[oldEntries.length-1] : h[0];
+  const latest = h[h.length-1];
+  return { change: (latest.p - old.p) * 100, from: old.p, to: latest.p };
+}
+
+function checkAlert(slug, summary) {
+  const change = getPriceChange(slug, settings.alertWindow);
+  if (Math.abs(change.change) >= settings.alertThreshold && summary.volume >= settings.alertVolume) {
+    const lastAlert = alerts.find(a => a.slug === slug);
+    const now = Date.now();
+    if (!lastAlert || (now - lastAlert.t) > settings.alertWindow * 60 * 1000) {
+      const alert = {
+        t: now,
+        slug,
+        question: summary.question,
+        change: change.change,
+        from: change.from,
+        to: change.to,
+        volume: summary.volume
+      };
+      alerts.unshift(alert);
+      alerts = alerts.slice(0, 200);
+      save(STORE.alerts, alerts);
+      summary._alertNow = true;
+      playAlertSound();
+      try {
+        if (Notification && Notification.permission === 'granted') {
+          new Notification('Alpha alert', {
+            body: `${summary.question}\n${change.change > 0 ? '↑' : '↓'}${Math.abs(change.change).toFixed(1)}% on ${(summary.volume/1000).toFixed(0)}k vol`
+          });
+        }
+      } catch(e) {}
+    }
+  }
+}
+
+function playAlertSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.value = 880;
+    g.gain.value = 0.1;
+    o.start();
+    o.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.15);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    o.stop(ctx.currentTime + 0.3);
+  } catch(e) {}
+}
+
+// ============================================================================
+// RENDERING
+// ============================================================================
+
+function renderMarkets() {
+  const container = document.getElementById('marketList');
+  if (watchlist.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <h3>Ingen markeder endnu</h3>
+        <p>Tilføj et Polymarket-link eller slug ovenfor for at begynde.</p>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = '';
+  for (const slug of watchlist) {
+    const data = currentMarketData[slug];
+    const card = document.createElement('div');
+    card.className = 'market-card';
+    if (data && data._alertNow) card.classList.add('alert');
+
+    if (!data) {
+      card.innerHTML = `
+        <div>
+          <div class="question">${escapeHtml(slug)}</div>
+          <div class="market-meta"><span style="color:var(--text-dim);">Henter data…</span></div>
+        </div>
+        <div class="price-block">
+          <div class="price-main" style="color:var(--text-dim);">—</div>
+          <div class="market-actions">
+            <button class="tiny" onclick="removeMarket('${slug}')">Fjern</button>
+          </div>
+        </div>
+      `;
+      container.appendChild(card);
+      continue;
+    }
+
+    const change = getPriceChange(slug, 60);
+    const changeClass = change.change > 0.1 ? 'up' : change.change < -0.1 ? 'down' : 'flat';
+    const changeArrow = change.change > 0.1 ? '↑' : change.change < -0.1 ? '↓' : '→';
+    const sparkPath = buildSparkline(slug);
+
+    let outcomesHtml = '';
+    if (data.isMulti && data.outcomes.length > 1) {
+      outcomesHtml = '<div class="outcomes">' +
+        data.outcomes.slice(0, 6).map(o => `
+          <div class="outcome-row">
+            <span class="outcome-name">${escapeHtml(o.name)}</span>
+            <span class="outcome-price">${o.price != null ? (o.price*100).toFixed(1)+'%' : '—'}</span>
+          </div>
+        `).join('') +
+        (data.outcomes.length > 6 ? `<div class="outcome-row"><span style="color:var(--text-dim);">+ ${data.outcomes.length-6} flere</span><span></span></div>` : '') +
+        '</div>';
+    }
+
+    const resolutionHtml = data.description ? `
+      <details style="margin-top:10px;">
+        <summary>Resolution-tekst (læs FØR trade)</summary>
+        <div class="resolution-text">${escapeHtml(data.description.slice(0, 800))}${data.description.length > 800 ? '…' : ''}</div>
+      </details>` : '';
+
+    card.innerHTML = `
+      <div>
+        <div class="question">${escapeHtml(data.question || slug)}</div>
+        <div class="market-meta">
+          <span>Vol: <strong>$${formatK(data.volume)}</strong></span>
+          <span>Liq: <strong>$${formatK(data.liquidity)}</strong></span>
+          ${data.endDate ? `<span>Ends: <strong>${formatDate(data.endDate)}</strong></span>` : ''}
+          <span><a href="https://polymarket.com/event/${slug}" target="_blank" style="color:var(--gold);">Polymarket ↗</a></span>
+        </div>
+        ${outcomesHtml}
+        ${resolutionHtml}
+      </div>
+      <div class="price-block">
+        <div class="price-main">${data.topPrice != null ? (data.topPrice*100).toFixed(1)+'%' : '—'}</div>
+        <div class="price-change ${changeClass}">${changeArrow} ${Math.abs(change.change).toFixed(1)}% / 1h</div>
+        <svg class="sparkline" viewBox="0 0 120 30" preserveAspectRatio="none">${sparkPath}</svg>
+        <div class="market-actions">
+          <button class="tiny" onclick="quickJournal('${slug}')">Logfør</button>
+          <button class="tiny" onclick="removeMarket('${slug}')">Fjern</button>
+        </div>
+      </div>
+    `;
+    container.appendChild(card);
+  }
+}
+
+function buildSparkline(slug) {
+  const h = history[slug];
+  if (!h || h.length < 2) return '';
+  const W = 120, H = 30;
+  const prices = h.map(x => x.p);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const range = max - min || 0.001;
+  const pts = h.map((x, i) => {
+    const px = (i / (h.length-1)) * W;
+    const py = H - ((x.p - min) / range) * (H-4) - 2;
+    return `${px.toFixed(1)},${py.toFixed(1)}`;
+  }).join(' ');
+  const last = h[h.length-1].p;
+  const first = h[0].p;
+  const stroke = last > first ? 'var(--green)' : last < first ? 'var(--red)' : 'var(--neutral)';
+  return `<polyline fill="none" stroke="${stroke}" stroke-width="1.5" points="${pts}"/>`;
+}
+
+function formatK(n) {
+  if (!n) return '0';
+  if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1)+'k';
+  return n.toFixed(0);
+}
+function formatDate(d) {
+  try {
+    const date = new Date(d);
+    return date.toLocaleDateString('da-DK', { day: '2-digit', month: 'short' });
+  } catch(e) { return d; }
+}
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ============================================================================
+// WATCHLIST
+// ============================================================================
+
+async function addMarket() {
+  const input = document.getElementById('addMarketInput');
+  const raw = input.value.trim();
+  if (!raw) return;
+  const slug = parseSlug(raw);
+  if (watchlist.includes(slug)) {
+    alert('Markedet er allerede på din watchlist.');
+    return;
+  }
+  watchlist.push(slug);
+  save(STORE.watchlist, watchlist);
+  input.value = '';
+  renderMarkets();
+  await refreshAll();
+}
+
+function removeMarket(slug) {
+  watchlist = watchlist.filter(s => s !== slug);
+  save(STORE.watchlist, watchlist);
+  delete currentMarketData[slug];
+  renderMarkets();
+}
+window.removeMarket = removeMarket;
+
+// ============================================================================
+// TRADE JOURNAL
+// ============================================================================
+
+function quickJournal(slug) {
+  // Switch to journal tab and pre-fill
+  document.querySelector('nav button[data-tab="journal"]').click();
+  rebuildTradeMarketDropdown();
+  document.getElementById('tradeMarket').value = slug;
+  const data = currentMarketData[slug];
+  if (data && data.topPrice != null) {
+    document.getElementById('tradePMarket').value = data.topPrice.toFixed(3);
+    document.getElementById('tradeEntry').value = data.topPrice.toFixed(3);
+  }
+  document.getElementById('tradeNotes').focus();
+}
+window.quickJournal = quickJournal;
+
+function rebuildTradeMarketDropdown() {
+  const sel = document.getElementById('tradeMarket');
+  sel.innerHTML = '';
+  for (const slug of watchlist) {
+    const data = currentMarketData[slug];
+    const label = data ? (data.question || slug).slice(0, 80) : slug;
+    const opt = document.createElement('option');
+    opt.value = slug;
+    opt.textContent = label;
+    sel.appendChild(opt);
+  }
+}
+
+function recalcEdge() {
+  const pm = parseFloat(document.getElementById('tradePMarket').value);
+  const pt = parseFloat(document.getElementById('tradePTrue').value);
+  if (isFinite(pm) && isFinite(pt)) {
+    const edge = (pt - pm) * 100;
+    const fee = 2; // 2% blanket assumption
+    const net = edge - Math.sign(edge) * fee;
+    const el = document.getElementById('tradeEdge');
+    el.value = `${edge >= 0 ? '+' : ''}${edge.toFixed(1)}% (net ${net >= 0 ? '+' : ''}${net.toFixed(1)}%)`;
+    el.style.color = Math.abs(net) > settings.edgeThreshold ? 'var(--gold-bright)' : 'var(--text-dim)';
+  } else {
+    document.getElementById('tradeEdge').value = '';
+  }
+}
+
+function saveTrade() {
+  const slug = document.getElementById('tradeMarket').value;
+  if (!slug) { alert('Vælg et marked'); return; }
+  const trade = {
+    id: 't_' + Date.now() + '_' + Math.floor(Math.random()*1000),
+    t: Date.now(),
+    slug,
+    question: currentMarketData[slug]?.question || slug,
+    outcome: document.getElementById('tradeOutcome').value,
+    pMarket: parseFloat(document.getElementById('tradePMarket').value) || null,
+    pTrue: parseFloat(document.getElementById('tradePTrue').value) || null,
+    confidence: parseFloat(document.getElementById('tradeConf').value) || null,
+    action: document.getElementById('tradeAction').value,
+    size: parseFloat(document.getElementById('tradeSize').value) || 0,
+    entry: parseFloat(document.getElementById('tradeEntry').value) || null,
+    notes: document.getElementById('tradeNotes').value,
+    status: 'PENDING',
+    realizedPnl: null,
+    exitPrice: null
+  };
+  trades.unshift(trade);
+  save(STORE.trades, trades);
+  // Clear form
+  document.getElementById('tradePMarket').value = '';
+  document.getElementById('tradePTrue').value = '';
+  document.getElementById('tradeConf').value = '';
+  document.getElementById('tradeEdge').value = '';
+  document.getElementById('tradeSize').value = '';
+  document.getElementById('tradeEntry').value = '';
+  document.getElementById('tradeNotes').value = '';
+  renderTrades();
+  renderStats();
+}
+
+function renderTrades() {
+  const c = document.getElementById('tradesTable');
+  if (trades.length === 0) {
+    c.innerHTML = '<div class="empty-state"><h3>Ingen trades endnu</h3><p>Logfør din første beslutning ovenfor — også <em>SKIP</em> tæller.</p></div>';
+    return;
+  }
+  let html = `<table><thead><tr>
+    <th>Dato</th><th>Marked</th><th>Action</th><th>P_market</th><th>P_true</th>
+    <th>Edge</th><th>Size</th><th>Status</th><th>P&L</th><th></th>
+  </tr></thead><tbody>`;
+  for (const t of trades) {
+    const edge = (t.pTrue != null && t.pMarket != null) ? ((t.pTrue - t.pMarket) * 100).toFixed(1) : '—';
+    const actionClass = t.action === 'BUY_YES' ? 'buy-yes' : t.action === 'BUY_NO' ? 'buy-no' : 'skip';
+    const statusClass = t.status === 'WIN' ? 'win' : t.status === 'LOSS' ? 'loss' : 'pending';
+    const pnl = t.realizedPnl != null ? (t.realizedPnl >= 0 ? '+' : '') + '$' + t.realizedPnl.toFixed(2) : '—';
+    const pnlColor = t.realizedPnl != null ? (t.realizedPnl >= 0 ? 'var(--green)' : 'var(--red)') : 'var(--text-dim)';
+    html += `<tr>
+      <td class="mono">${new Date(t.t).toLocaleDateString('da-DK', {day:'2-digit',month:'short'})}</td>
+      <td>${escapeHtml((t.question||'').slice(0,50))}${(t.question||'').length>50?'…':''}</td>
+      <td><span class="badge ${actionClass}">${t.action}</span></td>
+      <td class="mono">${t.pMarket != null ? (t.pMarket*100).toFixed(1)+'%' : '—'}</td>
+      <td class="mono">${t.pTrue != null ? (t.pTrue*100).toFixed(1)+'%' : '—'}</td>
+      <td class="mono">${edge !== '—' ? (parseFloat(edge) >= 0 ? '+' : '') + edge + '%' : '—'}</td>
+      <td class="mono">$${t.size.toFixed(0)}</td>
+      <td><span class="badge ${statusClass}">${t.status}</span></td>
+      <td class="mono" style="color:${pnlColor};">${pnl}</td>
+      <td>
+        ${t.status === 'PENDING' ? `<button class="tiny" onclick="openResolveModal('${t.id}')">Resolvér</button>` : ''}
+        <button class="tiny" onclick="deleteTrade('${t.id}')">×</button>
+      </td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  c.innerHTML = html;
+}
+
+function deleteTrade(id) {
+  if (!confirm('Slet trade?')) return;
+  trades = trades.filter(t => t.id !== id);
+  save(STORE.trades, trades);
+  renderTrades();
+  renderStats();
+}
+window.deleteTrade = deleteTrade;
+
+function openResolveModal(id) {
+  resolveTradeId = id;
+  document.getElementById('resolutionModal').classList.add('show');
+}
+window.openResolveModal = openResolveModal;
+
+function closeModal() {
+  document.getElementById('resolutionModal').classList.remove('show');
+  resolveTradeId = null;
+}
+window.closeModal = closeModal;
+
+function confirmResolve() {
+  const t = trades.find(x => x.id === resolveTradeId);
+  if (!t) { closeModal(); return; }
+  const outcome = document.getElementById('resolveOutcome').value;
+  const exit = parseFloat(document.getElementById('resolveExit').value);
+  t.status = outcome;
+  if (outcome !== 'UNRESOLVED' && t.action !== 'SKIP' && t.size > 0 && t.entry != null) {
+    const exitPrice = isFinite(exit) ? exit : (outcome === 'WIN' ? 1.0 : 0.0);
+    t.exitPrice = exitPrice;
+    if (t.action === 'BUY_YES') {
+      t.realizedPnl = (exitPrice - t.entry) * t.size / t.entry;
+    } else if (t.action === 'BUY_NO') {
+      t.realizedPnl = ((1 - exitPrice) - (1 - t.entry)) * t.size / (1 - t.entry);
+    }
+  } else if (t.action === 'SKIP') {
+    t.realizedPnl = 0;
+  }
+  save(STORE.trades, trades);
+  closeModal();
+  renderTrades();
+  renderStats();
+}
+
+// ============================================================================
+// PERFORMANCE / STATS
+// ============================================================================
+
+function renderStats() {
+  const grid = document.getElementById('statsGrid');
+  const resolved = trades.filter(t => t.status === 'WIN' || t.status === 'LOSS');
+  const traded = resolved.filter(t => t.action !== 'SKIP');
+  const wins = traded.filter(t => t.status === 'WIN').length;
+  const hitRate = traded.length > 0 ? (wins / traded.length * 100).toFixed(0) : '—';
+  const totalPnl = trades.reduce((s,t) => s + (t.realizedPnl || 0), 0);
+  const avgEdge = traded.length > 0 ? (traded.reduce((s,t) => s + ((t.pTrue||0) - (t.pMarket||0)), 0) / traded.length * 100).toFixed(1) : '—';
+  const skipRate = trades.length > 0 ? (trades.filter(t=>t.action==='SKIP').length / trades.length * 100).toFixed(0) : '—';
+  // Brier score
+  const brier = traded.length > 0 ? (traded.reduce((s,t) => {
+    const actual = t.status === 'WIN' ? 1 : 0;
+    return s + Math.pow((t.pTrue||0) - actual, 2);
+  }, 0) / traded.length) : null;
+
+  grid.innerHTML = `
+    <div class="stat-card"><div class="label">Total trades</div><div class="value">${trades.length}</div><div class="sub">${traded.length} executed · ${trades.length - traded.length} skipped</div></div>
+    <div class="stat-card"><div class="label">Hit rate</div><div class="value">${hitRate}${hitRate !== '—' ? '%' : ''}</div><div class="sub">${wins}/${traded.length} wins</div></div>
+    <div class="stat-card"><div class="label">Total P&L</div><div class="value" style="color:${totalPnl >= 0 ? 'var(--green)' : 'var(--red)'};">${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(0)}</div><div class="sub">over alle resolved trades</div></div>
+    <div class="stat-card"><div class="label">Avg predicted edge</div><div class="value">${avgEdge}${avgEdge !== '—' ? '%' : ''}</div><div class="sub">på executed trades</div></div>
+    <div class="stat-card"><div class="label">Skip-rate</div><div class="value">${skipRate}${skipRate !== '—' ? '%' : ''}</div><div class="sub">disciplin-indikator</div></div>
+    <div class="stat-card"><div class="label">Brier score</div><div class="value">${brier != null ? brier.toFixed(3) : '—'}</div><div class="sub">lavere er bedre · 0,25 = random</div></div>
+  `;
+
+  renderCalibChart();
+  renderPnlChart();
+}
+
+function renderCalibChart() {
+  const svg = document.getElementById('calibChart');
+  const W = 500, H = 300, pad = 40;
+  const traded = trades.filter(t => (t.status === 'WIN' || t.status === 'LOSS') && t.action !== 'SKIP' && t.pTrue != null);
+  const bins = Array.from({length: 10}, () => ({ n: 0, wins: 0, sumP: 0 }));
+  for (const t of traded) {
+    let p = t.pTrue;
+    if (t.action === 'BUY_NO') p = 1 - p; // we're betting against, so confidence in our side is 1-p
+    const bin = Math.min(9, Math.floor(p * 10));
+    bins[bin].n++;
+    bins[bin].sumP += p;
+    if ((t.action === 'BUY_YES' && t.status === 'WIN') || (t.action === 'BUY_NO' && t.status === 'WIN')) {
+      bins[bin].wins++;
+    }
+  }
+  let html = `
+    <line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${pad}" stroke="var(--gold-dim)" stroke-dasharray="4,4" stroke-width="1"/>
+    <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${H-pad}" stroke="var(--border)" stroke-width="1"/>
+    <line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}" stroke="var(--border)" stroke-width="1"/>
+    <text x="${W/2}" y="${H-8}" fill="var(--text-dim)" font-size="11" text-anchor="middle" font-family="DM Sans">Forudsagt sandsynlighed</text>
+    <text x="12" y="${H/2}" fill="var(--text-dim)" font-size="11" text-anchor="middle" transform="rotate(-90 12 ${H/2})" font-family="DM Sans">Faktisk hit-rate</text>
+  `;
+  for (let i = 0; i <= 10; i++) {
+    const x = pad + (i/10)*(W-2*pad);
+    const y = H - pad - (i/10)*(H-2*pad);
+    html += `<text x="${x}" y="${H-pad+14}" fill="var(--text-dim)" font-size="9" text-anchor="middle">${i*10}</text>`;
+    html += `<text x="${pad-6}" y="${y+3}" fill="var(--text-dim)" font-size="9" text-anchor="end">${i*10}</text>`;
+  }
+  for (let i = 0; i < 10; i++) {
+    if (bins[i].n === 0) continue;
+    const avgP = bins[i].sumP / bins[i].n;
+    const hitRate = bins[i].wins / bins[i].n;
+    const cx = pad + avgP * (W-2*pad);
+    const cy = H - pad - hitRate * (H-2*pad);
+    const r = Math.min(12, 3 + Math.sqrt(bins[i].n) * 2);
+    html += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--gold)" fill-opacity="0.6" stroke="var(--gold-bright)" stroke-width="1.5"/>`;
+    html += `<text x="${cx}" y="${cy+3}" fill="var(--navy)" font-size="9" text-anchor="middle" font-weight="600">${bins[i].n}</text>`;
+  }
+  if (traded.length === 0) {
+    html += `<text x="${W/2}" y="${H/2}" fill="var(--text-dim)" font-size="12" text-anchor="middle" font-style="italic">Ingen resolved trades endnu</text>`;
+  }
+  svg.innerHTML = html;
+}
+
+function renderPnlChart() {
+  const svg = document.getElementById('pnlChart');
+  const W = 800, H = 200;
+  const sorted = trades.filter(t => t.realizedPnl != null).sort((a,b) => a.t - b.t);
+  if (sorted.length === 0) {
+    svg.innerHTML = `<text x="${W/2}" y="${H/2}" fill="var(--text-dim)" font-size="12" text-anchor="middle" font-style="italic">Ingen P&amp;L data endnu</text>`;
+    return;
+  }
+  let cum = 0;
+  const points = sorted.map(t => { cum += t.realizedPnl; return { t: t.t, p: cum }; });
+  const maxP = Math.max(0, ...points.map(p=>p.p));
+  const minP = Math.min(0, ...points.map(p=>p.p));
+  const range = (maxP - minP) || 1;
+  const pad = 30;
+  const pts = points.map((p, i) => {
+    const x = pad + (i/(points.length-1 || 1)) * (W - 2*pad);
+    const y = H - pad - ((p.p - minP) / range) * (H - 2*pad);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const lastP = points[points.length-1].p;
+  const stroke = lastP >= 0 ? 'var(--green)' : 'var(--red)';
+  const zeroY = H - pad - ((0 - minP) / range) * (H - 2*pad);
+  svg.innerHTML = `
+    <line x1="${pad}" y1="${zeroY}" x2="${W-pad}" y2="${zeroY}" stroke="var(--border)" stroke-dasharray="2,4"/>
+    <polyline fill="none" stroke="${stroke}" stroke-width="2" points="${pts}"/>
+    <text x="${W-pad}" y="${pad-8}" fill="${stroke}" font-size="14" text-anchor="end" font-family="JetBrains Mono">${lastP >= 0 ? '+' : ''}$${lastP.toFixed(0)}</text>
+  `;
+}
+
+// ============================================================================
+// ALERTS LOG
+// ============================================================================
+
+function renderAlerts() {
+  const c = document.getElementById('alertLog');
+  if (alerts.length === 0) {
+    c.innerHTML = '<div class="empty-state"><p>Ingen alerts endnu. De vises her når et marked rykker over din tærskel.</p></div>';
+    return;
+  }
+  c.innerHTML = alerts.map(a => `
+    <div class="alert-entry">
+      <strong>${new Date(a.t).toLocaleString('da-DK')}</strong> · ${escapeHtml((a.question||a.slug).slice(0,80))}
+      <br>${a.change > 0 ? '↑' : '↓'} ${Math.abs(a.change).toFixed(1)}% (${(a.from*100).toFixed(1)}% → ${(a.to*100).toFixed(1)}%) · vol $${formatK(a.volume)}
+    </div>
+  `).join('');
+}
+
+// ============================================================================
+// IMPORT / EXPORT
+// ============================================================================
+
+function exportTrades() {
+  const blob = new Blob([JSON.stringify(trades, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `alpha-trades-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportAll() {
+  const data = { watchlist, trades, alerts, settings, history, exported: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `alpha-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importTrades(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const arr = JSON.parse(e.target.result);
+      if (Array.isArray(arr)) {
+        if (confirm(`Importér ${arr.length} trades? Dette OVERSKRIVER nuværende.`)) {
+          trades = arr;
+          save(STORE.trades, trades);
+          renderTrades(); renderStats();
+        }
+      }
+    } catch(e) { alert('Kunne ikke parse JSON: ' + e.message); }
+  };
+  reader.readAsText(file);
+}
+
+function importAll(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (confirm('Importér ALT? Dette overskriver al nuværende data.')) {
+        if (data.watchlist) { watchlist = data.watchlist; save(STORE.watchlist, watchlist); }
+        if (data.trades) { trades = data.trades; save(STORE.trades, trades); }
+        if (data.alerts) { alerts = data.alerts; save(STORE.alerts, alerts); }
+        if (data.settings) { settings = Object.assign({}, DEFAULT_SETTINGS, data.settings); save(STORE.settings, settings); }
+        if (data.history) { history = data.history; save(STORE.history, history); }
+        location.reload();
+      }
+    } catch(e) { alert('Fejl: ' + e.message); }
+  };
+  reader.readAsText(file);
+}
+
+function resetAll() {
+  if (!confirm('Slet ALT — watchlist, trades, alerts, indstillinger? Kan ikke fortrydes.')) return;
+  if (!confirm('Er du sikker? Sidste chance.')) return;
+  Object.values(STORE).forEach(k => localStorage.removeItem(k));
+  location.reload();
+}
+
+// ============================================================================
+// INIT
+// ============================================================================
+
+function bindUI() {
+  // Tabs
+  document.querySelectorAll('nav button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      if (btn.dataset.tab === 'journal') { rebuildTradeMarketDropdown(); renderTrades(); }
+      if (btn.dataset.tab === 'performance') renderStats();
+      if (btn.dataset.tab === 'alerts') renderAlerts();
+    });
+  });
+
+  // Add market
+  document.getElementById('addMarketBtn').addEventListener('click', addMarket);
+  document.getElementById('addMarketInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addMarket();
+  });
+
+  // Suggestions
+  document.querySelectorAll('[data-suggest]').forEach(b => {
+    b.addEventListener('click', () => {
+      document.getElementById('addMarketInput').value = b.dataset.suggest;
+      addMarket();
+    });
+  });
+
+  // Refresh
+  document.getElementById('refreshBtn').addEventListener('click', refreshAll);
+  document.getElementById('clearAlertsBtn').addEventListener('click', () => {
+    Object.values(currentMarketData).forEach(d => d._alertNow = false);
+    renderMarkets();
+  });
+
+  // Trade journal
+  document.getElementById('tradePMarket').addEventListener('input', recalcEdge);
+  document.getElementById('tradePTrue').addEventListener('input', recalcEdge);
+  document.getElementById('saveTradeBtn').addEventListener('click', saveTrade);
+
+  // Resolve
+  document.getElementById('confirmResolveBtn').addEventListener('click', confirmResolve);
+
+  // Export/import
+  document.getElementById('exportTradesBtn').addEventListener('click', exportTrades);
+  document.getElementById('importTradesBtn').addEventListener('click', () => document.getElementById('importTradesFile').click());
+  document.getElementById('importTradesFile').addEventListener('change', e => { if (e.target.files[0]) importTrades(e.target.files[0]); });
+  document.getElementById('exportAllBtn').addEventListener('click', exportAll);
+  document.getElementById('importAllBtn').addEventListener('click', () => document.getElementById('importAllFile').click());
+  document.getElementById('importAllFile').addEventListener('change', e => { if (e.target.files[0]) importAll(e.target.files[0]); });
+  document.getElementById('resetAllBtn').addEventListener('click', resetAll);
+
+  // Settings
+  document.getElementById('setPollingInterval').value = settings.pollingInterval;
+  document.getElementById('setAlertThreshold').value = settings.alertThreshold;
+  document.getElementById('setAlertWindow').value = settings.alertWindow;
+  document.getElementById('setAlertVolume').value = settings.alertVolume;
+  document.getElementById('saveSettingsBtn').addEventListener('click', () => {
+    settings.pollingInterval = Math.max(15, parseInt(document.getElementById('setPollingInterval').value) || 60);
+    settings.alertThreshold = parseFloat(document.getElementById('setAlertThreshold').value) || 3;
+    settings.alertWindow = parseInt(document.getElementById('setAlertWindow').value) || 30;
+    settings.alertVolume = parseFloat(document.getElementById('setAlertVolume').value) || 5000;
+    save(STORE.settings, settings);
+    setupPolling();
+    alert('Gemt.');
+  });
+  document.getElementById('testSoundBtn').addEventListener('click', playAlertSound);
+
+  // Notification permission
+  if (window.Notification && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
+  // ESC closes modal
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+}
+
+function setupPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(refreshAll, settings.pollingInterval * 1000);
+}
+
+async function init() {
+  bindUI();
+  renderMarkets();
+  renderTrades();
+  renderStats();
+  renderAlerts();
+  if (watchlist.length > 0) await refreshAll();
+  setupPolling();
+}
+
+init();
+</script>
+</body>
+</html>
